@@ -1,33 +1,38 @@
-version: "3.8"
-
 services:
-  api:
-    build: .
-    ports:
-      - "8080:8080"
+  postgres:
+    image: postgres:16.6-alpine
+    container_name: tms-postgres
+    restart: unless-stopped
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-    depends_on:
-      - db
-      - redis
-
-  db:
-    image: postgres:16
-    restart: always
-    environment:
-      POSTGRES_DB: taskdb
-      POSTGRES_USER: username
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+      POSTGRES_DB: ${POSTGRES_DB:-taskmanagement}
     ports:
-      - "5432:5432"
+      - ${POSTGRES_PORT:-5432}:5432
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tms-network
 
   redis:
-    image: redis:7
-    restart: always
+    image: redis:7.4-alpine
+    container_name: tms-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
     ports:
-      - "6379:6379"
+      - ${REDIS_PORT:-6379}:6379
+    volumes:
+      - redis_data:/data
+    networks:
+      - tms-network
+
+networks:
+  tms-network:
+    driver: bridge
 
 volumes:
-  pgdata:
+  postgres_data:
+  redis_data:

@@ -1,36 +1,34 @@
+using task_management_system_aca.Data;
+using task_management_system_aca.Services;
 
-namespace task_management_system_aca
-{
-    public class Program
-    {
-        public static void Main(string[] args)
-        {
-            var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
+// Connection string
+var connectionString = "Host=localhost;Port=5432;Database=taskmanagement;Username=admin;Password=admin123";
 
-            builder.Services.AddControllers();
-            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-            builder.Services.AddOpenApi();
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
-            var app = builder.Build();
-            app.UseSwagger();
-            app.UseSwaggerUI();
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.MapOpenApi();
-            }
+// Create database factory
+var dbConnectionFactory = new NpgsqlConnectionFactory(connectionString);
 
-            // app.UseHttpsRedirection();
+// Register services one by one
+builder.Services.AddSingleton<IDbConnectionFactory>(dbConnectionFactory);
+builder.Services.AddSingleton<AuthService>();
+builder.Services.AddSingleton<BoardService>();
+builder.Services.AddSingleton<SectionService>();
+builder.Services.AddSingleton<TaskService>();
 
-            app.UseAuthorization();
+// Add controllers and Swagger
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
+var app = builder.Build();
 
-            app.MapControllers();
+// Configure Swagger
+app.UseSwagger();
+app.UseSwaggerUI();
 
-            app.Run();
-        }
-    }
-}
+app.UseRouting();
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();
