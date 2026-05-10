@@ -1,191 +1,39 @@
-﻿--
--- PostgreSQL database dump
---
-
--- Dumped from database version 16.6
--- Dumped by pg_dump version 16.6
-
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
-
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
---
--- Name: boards; Type: TABLE; Schema: public; Owner: admin
---
+﻿CREATE TABLE public.users (
+                              id uuid NOT NULL,  
+                              username character varying(50) NOT NULL,
+                              password_hash text NOT NULL,
+                              created_at timestamp without time zone NOT NULL
+);
 
 CREATE TABLE public.boards (
-    id integer NOT NULL,
-    title character varying(100) NOT NULL,
-    description text,
-    sku character varying(3) NOT NULL,
-    owner_id integer NOT NULL,
-    created_at timestamp without time zone NOT NULL
+                               id uuid NOT NULL,  
+                               title character varying(100) NOT NULL,
+                               description text,
+                               sku character varying(3) NOT NULL,
+                               owner_id uuid NOT NULL,  
+                               created_at timestamp without time zone NOT NULL
 );
-
-
-ALTER TABLE public.boards OWNER TO admin;
-
---
--- Name: sections; Type: TABLE; Schema: public; Owner: admin
---
 
 CREATE TABLE public.sections (
-    id integer NOT NULL,
-    name character varying(100) NOT NULL,
-    board_id integer NOT NULL,
-    "position" integer NOT NULL,
-    is_default boolean DEFAULT false,
-    created_at timestamp without time zone NOT NULL
+                                 id uuid NOT NULL, 
+                                 name character varying(100) NOT NULL,
+                                 board_id uuid NOT NULL,  
+                                 "position" integer NOT NULL,
+                                 is_default boolean DEFAULT false,
+                                 created_at timestamp without time zone NOT NULL
 );
-
-
-ALTER TABLE public.sections OWNER TO admin;
-
---
--- Name: tasks; Type: TABLE; Schema: public; Owner: admin
---
 
 CREATE TABLE public.tasks (
-    id integer NOT NULL,
-    title character varying(200) NOT NULL,
-    description text,
-    board_id integer NOT NULL,
-    section_id integer NOT NULL,
-    assignee_id integer,
-    due_date date,
-    priority character varying(20) DEFAULT 'Medium'::character varying,
-    is_archived boolean DEFAULT false,
-    created_by integer NOT NULL,
-    created_at timestamp without time zone NOT NULL,
-    updated_at timestamp without time zone
+                              id uuid NOT NULL,  
+                              title character varying(200) NOT NULL,
+                              description text,
+                              board_id uuid NOT NULL,  
+                              section_id uuid NOT NULL,  
+                              assignee_id uuid,  
+                              due_date date,
+                              priority character varying(20) DEFAULT 'Medium',
+                              is_archived boolean DEFAULT false,
+                              created_by uuid NOT NULL,  
+                              created_at timestamp without time zone NOT NULL,
+                              updated_at timestamp without time zone
 );
-
-
-ALTER TABLE public.tasks OWNER TO admin;
-
---
--- Name: users; Type: TABLE; Schema: public; Owner: admin
---
-
-CREATE TABLE public.users (
-    id integer NOT NULL,
-    username character varying(50) NOT NULL,
-    password_hash text NOT NULL,
-    created_at timestamp without time zone NOT NULL
-);
-
-
-ALTER TABLE public.users OWNER TO admin;
-
---
--- Name: boards boards_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.boards
-    ADD CONSTRAINT boards_pkey PRIMARY KEY (id);
-
-
---
--- Name: boards boards_sku_key; Type: CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.boards
-    ADD CONSTRAINT boards_sku_key UNIQUE (sku);
-
-
---
--- Name: sections sections_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.sections
-    ADD CONSTRAINT sections_pkey PRIMARY KEY (id);
-
-
---
--- Name: tasks tasks_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.tasks
-    ADD CONSTRAINT tasks_pkey PRIMARY KEY (id);
-
-
---
--- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
-
-
---
--- Name: users users_username_key; Type: CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_username_key UNIQUE (username);
-
-
---
--- Name: boards boards_owner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.boards
-    ADD CONSTRAINT boards_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.users(id);
-
-
---
--- Name: sections sections_board_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.sections
-    ADD CONSTRAINT sections_board_id_fkey FOREIGN KEY (board_id) REFERENCES public.boards(id) ON DELETE CASCADE;
-
-
---
--- Name: tasks tasks_assignee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.tasks
-    ADD CONSTRAINT tasks_assignee_id_fkey FOREIGN KEY (assignee_id) REFERENCES public.users(id);
-
-
---
--- Name: tasks tasks_board_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.tasks
-    ADD CONSTRAINT tasks_board_id_fkey FOREIGN KEY (board_id) REFERENCES public.boards(id) ON DELETE CASCADE;
-
-
---
--- Name: tasks tasks_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.tasks
-    ADD CONSTRAINT tasks_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
-
-
---
--- Name: tasks tasks_section_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: admin
---
-
-ALTER TABLE ONLY public.tasks
-    ADD CONSTRAINT tasks_section_id_fkey FOREIGN KEY (section_id) REFERENCES public.sections(id) ON DELETE CASCADE;
-
-
---
--- PostgreSQL database dump complete
---
-
-

@@ -1,71 +1,92 @@
-using Npgsql;
-using Dapper;
+using Microsoft.EntityFrameworkCore;
+using task_management_system_aca.Data;
 using task_management_system_aca.Entities;
 
 namespace task_management_system_aca.Services;
 
 public class BoardService
 {
-    private readonly string _connectionString;
+    private readonly AppDbContext _context;
 
-    public BoardService()
+    public BoardService(AppDbContext context)
     {
-        _connectionString = "Host=localhost;Port=5432;Database=taskmanagement;Username=admin;Password=admin123";
+        _context = context;
     }
 
-    public async Task<int> CreateBoardAsync(Board board)
+    public async Task<Board> CreateBoardAsync(Board board)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
+       
+        _context.Boards.Add(board);
+        await _context.SaveChangesAsync();
         
-        var sql = @"
-            INSERT INTO boards (id, title, description, sku, owner_id, created_at) 
-            VALUES (@Id, @Title, @Description, @Sku, @OwnerId, @CreatedAt)
-            RETURNING id;
-        ";
         
-        return await connection.QuerySingleAsync<int>(sql, board);
+        var defaultSections = new[]
+        {
+            new Section 
+            { 
+                Id = Guid.NewGuid(), 
+                Name = "To Do", 
+                BoardId = board.Id, 
+                Position = 0, 
+                IsDefault = true, 
+                CreatedAt = DateTime.UtcNow 
+            },
+            new Section 
+            { 
+                Id = Guid.NewGuid(), 
+                Name = "In Progress", 
+                BoardId = board.Id, 
+                Position = 1, 
+                IsDefault = false, 
+                CreatedAt = DateTime.UtcNow 
+            },
+            new Section 
+            { 
+                Id = Guid.NewGuid(), 
+                Name = "Done", 
+                BoardId = board.Id, 
+                Position = 2, 
+                IsDefault = false, 
+                CreatedAt = DateTime.UtcNow 
+            }
+        };
+        
+        _context.Sections.AddRange(defaultSections);
+        await _context.SaveChangesAsync();
+        
+        return board;
     }
 
-    public async Task<IEnumerable<Board>> GetBoardsByUserAsync(int userId)
+    public async Task<List<Board>> GetBoardsByUserAsync(Guid userId)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-        
-        var sql = "SELECT * FROM boards WHERE owner_id = @UserId ORDER BY created_at DESC";
-        
-        return await connection.QueryAsync<Board>(sql, new { UserId = userId });
+        return await _context.Boards
+            .Where(b => b.OwnerId == userId)
+            .OrderByDescending(b => b.CreatedAt)
+            .ToListAsync();
     }
 
-    public async Task<Board?> GetBoardByIdAsync(int boardId)
+    public async Task<Board?> GetBoardByIdAsync(Guid boardId)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-        
-        var sql = "SELECT * FROM boards WHERE id = @BoardId";
-        
-        return await connection.QueryFirstOrDefaultAsync<Board>(sql, new { BoardId = boardId });
+        return await _context.Boards
+            .Include(b => b.Sections)
+            .Include(b => b.Tasks)
+            .FirstOrDefaultAsync(b => b.Id == boardId);
     }
 
     public async Task<bool> UpdateBoardAsync(Board board)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-        
-        var sql = "UPDATE boards SET title = @Title, description = @Description WHERE id = @Id AND owner_id = @OwnerId";
-        
-        var affected = await connection.ExecuteAsync(sql, board);
-        return affected > 0;
+        _context.Boards.Update(board);
+        return await _context.SaveChangesAsync() > 0;
     }
 
-    public async Task<bool> DeleteBoardAsync(int boardId, int ownerId)
+    public async Task<bool> DeleteBoardAsync(Guid boardId, Guid ownerId)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
+        var board = await _context.Boards
+            .FirstOrDefaultAsync(b => b.Id == boardId && b.OwnerId == ownerId);
         
-        var sql = "DELETE FROM boards WHERE id = @BoardId AND owner_id = @OwnerId";
+        if (board == null) return false;
         
-        var affected = await connection.ExecuteAsync(sql, new { BoardId = boardId, OwnerId = ownerId });
-        return affected > 0;
+        _context.Boards.Remove(board);
+        return await _context.SaveChangesAsync() > 0;
     }
 }

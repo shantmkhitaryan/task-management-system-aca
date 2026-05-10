@@ -1,40 +1,48 @@
-﻿using Dapper;
-using Npgsql;
-using System.Diagnostics.CodeAnalysis;
+﻿using Microsoft.EntityFrameworkCore;
+using task_management_system_aca.Data;
 using task_management_system_aca.Entities;
 
-namespace task_management_system_aca.Services
+namespace task_management_system_aca.Services;
+
+public class InviteService
 {
-    public class InviteService
+    private readonly AppDbContext _context;
+
+    public InviteService(AppDbContext context)
     {
-        private readonly string _connectionString;
+        _context = context;
+    }
 
-        public InviteService()
-        {
-            _connectionString = "Host=localhost;Port=5432;Database=taskmanagement;Username=admin;Password=admin123";
-        }
+    public async Task<BoardInvite> CreateInvitationAsync(BoardInvite invite)
+    {
+        _context.BoardInvites.Add(invite);
+        await _context.SaveChangesAsync();
+        return invite;
+    }
 
-        public async Task<int> CreateInvitationAsync (BoardInvite invite)
-        {
-            using var connection = new NpgsqlConnection(_connectionString);
-            await connection.OpenAsync();
+    public async Task<List<BoardInvite>> GetBoardInvitesByBoardIdAsync(Guid boardId)
+    {
+        return await _context.BoardInvites
+            .Where(i => i.BoardId == boardId)
+            .OrderByDescending(i => i.CreatedAt)
+            .ToListAsync();
+    }
 
-            var sql = @"
-                INSERT INTO board_invites (id, board_id, sender, receiver, status, created_at)
-                VALUES (@Id, @BoardId, @Sender, @Receiver, @Status, @CreatedAt)
-                RETURNING id;
-               ";
+    public async Task<bool> UpdateInvitationStatusAsync(Guid inviteId, string status)
+    {
+        var invite = await _context.BoardInvites.FindAsync(inviteId);
+        if (invite == null) return false;
+        
+        invite.Status = status;
+        return await _context.SaveChangesAsync() > 0;
+    }
 
-            return await connection.QuerySingleAsync<int>(sql, invite);
-        }
-        public async Task<IEnumerable<BoardInvite>> GetBoardInvitesByBoardIdAsync(int boardId)
-        {
-            using var connection = new NpgsqlConnection(_connectionString);
-            await connection.OpenAsync();
-
-            var sql = "SELECT * FROM invites WHERE board_id = @boardId ORDER BY created_at DESC";
-
-            return await connection.QueryAsync<BoardInvite>(sql, new { BoardId = boardId });
-        }
+    public async Task<bool> DeleteInvitationAsync(Guid inviteId)
+    {
+        var invite = await _context.BoardInvites.FindAsync(inviteId);
+        if (invite == null) return false;
+        
+        _context.BoardInvites.Remove(invite);
+        return await _context.SaveChangesAsync() > 0;
     }
 }

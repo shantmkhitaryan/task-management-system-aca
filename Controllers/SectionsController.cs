@@ -17,13 +17,13 @@ public class SectionsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetSections([FromQuery] int boardId)
+    public async Task<IActionResult> GetSections([FromQuery] Guid boardId)
     {
-        if (boardId <= 0)
+        if (boardId == Guid.Empty)
         {
             return BadRequest(new { error = "BoardId is required" });
         }
-        
+
         var sections = await _sectionService.GetSectionsByBoardIdAsync(boardId);
         return Ok(sections);
     }
@@ -31,27 +31,58 @@ public class SectionsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateSection([FromBody] CreateSectionRequest request)
     {
-        try
+        if (request.BoardId == Guid.Empty)
         {
-            var sectionId = new Random().Next(1, 1000000);
-            
-            var section = new Section
-            {
-                Id = sectionId,
-                Name = request.Name,
-                BoardId = request.BoardId,
-                Position = request.Position,
-                IsDefault = false,
-                CreatedAt = DateTime.UtcNow
-            };
+            return BadRequest(new { error = "BoardId is required" });
+        }
 
-            await _sectionService.CreateSectionAsync(section);
-            
-            return Ok(new { id = sectionId, message = "Section created successfully" });
-        }
-        catch (Exception ex)
+        var section = new Section
         {
-            return StatusCode(500, new { error = ex.Message });
-        }
+            Id = Guid.NewGuid(),
+            Name = request.Name,
+            BoardId = request.BoardId,
+            Position = request.Position,
+            IsDefault = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var createdSection = await _sectionService.CreateSectionAsync(section);
+        return Ok(createdSection);
+    }
+
+    
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateSection(Guid id, [FromBody] UpdateSectionRequest request)
+    {
+        var section = await _sectionService.GetSectionByIdAsync(id);
+        if (section == null)
+            return NotFound(new { error = $"Section {id} not found" });
+
+        if (section.IsDefault)
+            return BadRequest(new { error = "Cannot rename the default section" });
+
+        var updated = await _sectionService.UpdateSectionNameAsync(id, request.Name);
+        if (!updated)
+            return BadRequest(new { error = "Update failed" });
+
+        return Ok(new { message = "Section updated successfully", name = request.Name });
+    }
+
+    
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteSection(Guid id)
+    {
+        var section = await _sectionService.GetSectionByIdAsync(id);
+        if (section == null)
+            return NotFound(new { error = $"Section {id} not found" });
+
+        if (section.IsDefault)
+            return BadRequest(new { error = "Cannot delete the default section" });
+
+        var deleted = await _sectionService.DeleteSectionAsync(id);
+        if (!deleted)
+            return BadRequest(new { error = "Delete failed" });
+
+        return NoContent();
     }
 }

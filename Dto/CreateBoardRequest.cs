@@ -5,7 +5,7 @@ namespace task_management_system_aca.Dto;
 public class CreateBoardRequest
 {
     [Required]
-    public int UserId { get; set; }
+    public Guid UserId { get; set; }  
     
     [Required]
     [MaxLength(100)]

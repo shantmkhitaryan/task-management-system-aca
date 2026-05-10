@@ -17,9 +17,9 @@ namespace task_management_system_aca.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetInvites([FromQuery] int boardId)
+        public async Task<IActionResult> GetInvites([FromQuery] Guid boardId)
         {
-            if (boardId <= 0)
+            if (boardId == Guid.Empty)
             {
                 return BadRequest(new { error = "BoardId is required" });
             }
@@ -33,21 +33,20 @@ namespace task_management_system_aca.Controllers
         {
             try
             {
-                var inviteId = new Random().Next(1, 1000000);
-
                 var invite = new BoardInvite
                 {
-                    Id = inviteId,
+                    Id = Guid.NewGuid(),  // Generate new Guid
                     BoardId = request.BoardId,
-                    Sender = request.Sender,
-                    Receiver = request.Receiver,
-                    Status = request.Status,
-                    CreatedAt = DateTime.UtcNow
+                    InvitedBy = request.Sender,
+                    InvitedUserId = request.Receiver,
+                    Status = "Pending",
+                    CreatedAt = DateTime.UtcNow,
+                    ExpiresAt = DateTime.UtcNow.AddHours(24)
                 };
 
                 await _inviteService.CreateInvitationAsync(invite);
 
-                return Ok(new { id = inviteId, message = "Invitation sent successfully" });
+                return Ok(new { id = invite.Id, message = "Invitation sent successfully" });
             }
             catch (Exception ex)
             {

@@ -24,7 +24,7 @@ public class AuthController : ControllerBase
         {
             var user = new User
             {
-                Id = new Random().Next(1, 1000000),
+                Id = Guid.NewGuid(),
                 Username = request.Username,
                 PasswordHash = request.Password.HashPassword(),
                 CreatedAt = DateTime.UtcNow
@@ -34,9 +34,13 @@ public class AuthController : ControllerBase
             
             return Ok(new { message = "Registration successful", userId = user.Id });
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             return BadRequest(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { error = ex.Message });
         }
     }
 }

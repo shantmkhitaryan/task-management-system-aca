@@ -1,49 +1,54 @@
-using Npgsql;
-using Dapper;
+using Microsoft.EntityFrameworkCore;
+using task_management_system_aca.Data;
 using task_management_system_aca.Entities;
 
 namespace task_management_system_aca.Services;
 
 public class SectionService
 {
-    private readonly string _connectionString;
+    private readonly AppDbContext _context;
 
-    public SectionService()
+    public SectionService(AppDbContext context)
     {
-        _connectionString = "Host=localhost;Port=5432;Database=taskmanagement;Username=admin;Password=admin123";
+        _context = context;
     }
 
-    public async Task<int> CreateSectionAsync(Section section)
+    public async Task<Section> CreateSectionAsync(Section section)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-        
-        var sql = @"
-            INSERT INTO sections (id, name, board_id, position, is_default, created_at) 
-            VALUES (@Id, @Name, @BoardId, @Position, @IsDefault, @CreatedAt)
-            RETURNING id;
-        ";
-        
-        return await connection.QuerySingleAsync<int>(sql, section);
+        _context.Sections.Add(section);
+        await _context.SaveChangesAsync();
+        return section;
     }
 
-    public async Task<IEnumerable<Section>> GetSectionsByBoardIdAsync(int boardId)
+    public async Task<List<Section>> GetSectionsByBoardIdAsync(Guid boardId)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-        
-        var sql = "SELECT * FROM sections WHERE board_id = @BoardId ORDER BY position ASC";
-        
-        return await connection.QueryAsync<Section>(sql, new { BoardId = boardId });
+        return await _context.Sections
+            .Where(s => s.BoardId == boardId)
+            .OrderBy(s => s.Position)
+            .ToListAsync();
     }
 
-    public async Task<Section?> GetSectionByIdAsync(int sectionId)
+    public async Task<Section?> GetSectionByIdAsync(Guid sectionId)
     {
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
+        return await _context.Sections
+            .FirstOrDefaultAsync(s => s.Id == sectionId);
+    }
+
+    public async Task<bool> UpdateSectionNameAsync(Guid sectionId, string name)
+    {
+        var section = await _context.Sections.FindAsync(sectionId);
+        if (section == null) return false;
         
-        var sql = "SELECT * FROM sections WHERE id = @SectionId";
+        section.Name = name;
+        return await _context.SaveChangesAsync() > 0;
+    }
+
+    public async Task<bool> DeleteSectionAsync(Guid sectionId)
+    {
+        var section = await _context.Sections.FindAsync(sectionId);
+        if (section == null) return false;
         
-        return await connection.QueryFirstOrDefaultAsync<Section>(sql, new { SectionId = sectionId });
+        _context.Sections.Remove(section);
+        return await _context.SaveChangesAsync() > 0;
     }
 }
