@@ -15,45 +15,8 @@ public class BoardService
 
     public async Task<Board> CreateBoardAsync(Board board)
     {
-       
         _context.Boards.Add(board);
         await _context.SaveChangesAsync();
-        
-        
-        var defaultSections = new[]
-        {
-            new Section 
-            { 
-                Id = Guid.NewGuid(), 
-                Name = "To Do", 
-                BoardId = board.Id, 
-                Position = 0, 
-                IsDefault = true, 
-                CreatedAt = DateTime.UtcNow 
-            },
-            new Section 
-            { 
-                Id = Guid.NewGuid(), 
-                Name = "In Progress", 
-                BoardId = board.Id, 
-                Position = 1, 
-                IsDefault = false, 
-                CreatedAt = DateTime.UtcNow 
-            },
-            new Section 
-            { 
-                Id = Guid.NewGuid(), 
-                Name = "Done", 
-                BoardId = board.Id, 
-                Position = 2, 
-                IsDefault = false, 
-                CreatedAt = DateTime.UtcNow 
-            }
-        };
-        
-        _context.Sections.AddRange(defaultSections);
-        await _context.SaveChangesAsync();
-        
         return board;
     }
 
