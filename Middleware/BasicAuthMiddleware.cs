@@ -1,6 +1,4 @@
-using System.Net.Http.Headers;
 using System.Text;
-using Microsoft.Extensions.DependencyInjection;
 using task_management_system_aca.Services;
 
 namespace task_management_system_aca.Middleware;
@@ -14,71 +12,67 @@ public class BasicAuthMiddleware
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext context, IServiceScopeFactory serviceScopeFactory)
+    public async Task InvokeAsync(HttpContext context, AuthService authService)
     {
         
-        if (context.Request.Path.StartsWithSegments("/swagger") ||
-            context.Request.Path.StartsWithSegments("/api/Auth/register"))
+        var path = context.Request.Path.ToString();
+        if (path.Contains("/swagger") || path.Contains("/api/Auth/register"))
         {
             await _next(context);
             return;
         }
 
-       
+        
         if (!context.Request.Headers.ContainsKey("Authorization"))
         {
             context.Response.StatusCode = 401;
-            context.Response.Headers.Append("WWW-Authenticate", "Basic");
             await context.Response.WriteAsync("Missing Authorization header");
+            return;
+        }
+
+        var authHeader = context.Request.Headers["Authorization"].ToString();
+        
+        if (!authHeader.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsync("Invalid Authorization scheme");
             return;
         }
 
         try
         {
-            var authHeader = context.Request.Headers["Authorization"].ToString();
-            if (string.IsNullOrEmpty(authHeader))
+            var encoded = authHeader.Substring(6).Trim();
+            var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+            var parts = decoded.Split(':', 2);
+            
+            if (parts.Length != 2)
             {
                 context.Response.StatusCode = 401;
-                await context.Response.WriteAsync("Invalid Authorization header");
+                await context.Response.WriteAsync("Invalid credentials format");
                 return;
             }
 
-            var authHeaderValue = AuthenticationHeaderValue.Parse(authHeader);
-            if (authHeaderValue.Parameter == null)
+            var username = parts[0];
+            var password = parts[1];
+
+            var user = await authService.AuthenticateAsync(username, password);
+            
+            if (user == null)
             {
                 context.Response.StatusCode = 401;
-                await context.Response.WriteAsync("Invalid Authorization header");
+                await context.Response.WriteAsync("Invalid username or password");
                 return;
             }
 
-            var credentialBytes = Convert.FromBase64String(authHeaderValue.Parameter);
-            var credentials = Encoding.UTF8.GetString(credentialBytes).Split(':', 2);
-            var username = credentials[0];
-            var password = credentials[1];
-
-           
-            using (var scope = serviceScopeFactory.CreateScope())
-            {
-                var authService = scope.ServiceProvider.GetRequiredService<AuthService>();
-                var user = await authService.AuthenticateAsync(username, password);
-                
-                if (user == null)
-                {
-                    context.Response.StatusCode = 401;
-                    await context.Response.WriteAsync("Invalid username or password");
-                    return;
-                }
-
-                context.Items["User"] = user;
-                context.Items["UserId"] = user.Id;
-            }
+            context.Items["User"] = user;
+            context.Items["UserId"] = user.Id;
             
             await _next(context);
         }
         catch
         {
             context.Response.StatusCode = 401;
-            await context.Response.WriteAsync("Invalid Authorization header");
+            await context.Response.WriteAsync("Authentication error");
         }
     }
 }

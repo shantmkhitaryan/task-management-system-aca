@@ -16,6 +16,39 @@ public class TaskItem
     public Guid CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+
+    
+    [NotMapped]
+    public string TaskReference 
+    { 
+        get 
+        {
+            var shortId = Id.ToString().Split('-').Last().Substring(0, 4).ToUpper();
+            return $"{Board?.Sku ?? "???"}-{shortId}";
+        }
+    }
+    
+    
+    [NotMapped]
+    public string DueDateState
+    {
+        get
+        {
+            if (!DueDate.HasValue)
+                return "None";
+
+            var today = DateTime.UtcNow.Date;
+            var dueDate = DueDate.Value.Date;
+
+            if (today > dueDate)
+                return "Overdue";
+            
+            if (today == dueDate.AddDays(-1))
+                return "Attention";
+            
+            return "Normal";
+        }
+    }
     
     
     [ForeignKey("BoardId")]

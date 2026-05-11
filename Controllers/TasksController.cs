@@ -10,17 +10,23 @@ namespace task_management_system_aca.Controllers;
 public class TasksController : ControllerBase
 {
     private readonly TaskService _taskService;
+    private readonly BoardService _boardService;
     private readonly SectionService _sectionService;
 
-    public TasksController(TaskService taskService, SectionService sectionService)
+    public TasksController(TaskService taskService, BoardService boardService, SectionService sectionService)
     {
         _taskService = taskService;
+        _boardService = boardService;
         _sectionService = sectionService;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetTasks(Guid boardId, [FromQuery] bool archived = false)
     {
+        var board = await _boardService.GetBoardByIdAsync(boardId);
+        if (board == null)
+            return NotFound($"Board {boardId} not found");
+
         var tasks = await _taskService.GetTasksByBoardIdAsync(boardId, archived);
         return Ok(tasks);
     }
@@ -28,7 +34,7 @@ public class TasksController : ControllerBase
     [HttpGet("{taskId}")]
     public async Task<IActionResult> GetTask(Guid boardId, Guid taskId)
     {
-        var task = await _taskService.GetTaskByIdAsync(taskId);
+        var task = await _taskService.GetTaskResponseByIdAsync(taskId);
         if (task == null || task.BoardId != boardId)
             return NotFound();
 
@@ -38,6 +44,10 @@ public class TasksController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateTask(Guid boardId, [FromBody] CreateTaskRequest request)
     {
+        var board = await _boardService.GetBoardByIdAsync(boardId);
+        if (board == null)
+            return NotFound($"Board {boardId} not found");
+
         var sections = await _sectionService.GetSectionsByBoardIdAsync(boardId);
         
         if (sections == null || !sections.Any())
@@ -59,13 +69,44 @@ public class TasksController : ControllerBase
             DueDate = request.DueDate,
             Priority = request.Priority,
             IsArchived = false,
-            CreatedBy = Guid.Parse("00000000-0000-0000-0000-000000000001"), // Temporary system user
+            CreatedBy = Guid.Parse("00000000-0000-0000-0000-000000000001"),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         var createdTask = await _taskService.CreateTaskAsync(task);
-        return CreatedAtAction(nameof(GetTask), new { boardId, taskId = createdTask.Id }, createdTask);
+        return CreatedAtAction(nameof(GetTask), new { boardId, taskId = createdTask.Id }, new { id = createdTask.Id });
+    }
+
+    [HttpPut("{taskId}")]
+    public async Task<IActionResult> UpdateTask(Guid boardId, Guid taskId, [FromBody] UpdateTaskRequest request)
+    {
+        var task = await _taskService.GetTaskByIdAsync(taskId);
+        if (task == null || task.BoardId != boardId)
+            return NotFound();
+
+        if (!string.IsNullOrEmpty(request.Title))
+            task.Title = request.Title;
+        
+        if (request.Description != null)
+            task.Description = request.Description;
+        
+        if (request.AssigneeId.HasValue)
+            task.AssigneeId = request.AssigneeId;
+        
+        if (request.DueDate.HasValue)
+            task.DueDate = request.DueDate;
+        
+        if (!string.IsNullOrEmpty(request.Priority))
+            task.Priority = request.Priority;
+        
+        task.UpdatedAt = DateTime.UtcNow;
+
+        var updated = await _taskService.UpdateTaskAsync(task);
+        if (!updated)
+            return BadRequest();
+
+        return Ok(task);
     }
 
     [HttpPatch("{taskId}/move")]
