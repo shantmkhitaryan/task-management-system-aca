@@ -10,16 +10,24 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = "localhost:6379";
+    options.InstanceName = "TaskManagement";
+});
+
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<SectionService>();
 builder.Services.AddScoped<TaskService>();
 builder.Services.AddScoped<InviteService>();
+builder.Services.AddSingleton<RedisCacheService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.WriteIndented = true;
     });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -27,7 +35,7 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-//app.UseMiddleware<BasicAuthMiddleware>();
+app.UseMiddleware<BasicAuthMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

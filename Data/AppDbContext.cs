@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
 
     public DbSet<User> Users { get; set; }
     public DbSet<Board> Boards { get; set; }
+    public DbSet<BoardMember> BoardMembers { get; set; }
     public DbSet<Section> Sections { get; set; }
     public DbSet<TaskItem> Tasks { get; set; }
     public DbSet<BoardInvite> BoardInvites { get; set; }
@@ -58,6 +59,24 @@ public class AppDbContext : DbContext
         });
 
         
+        modelBuilder.Entity<BoardMember>(entity =>
+        {
+            entity.HasKey(bm => new { bm.BoardId, bm.UserId });
+            
+            entity.HasOne(bm => bm.Board)
+                  .WithMany()
+                  .HasForeignKey(bm => bm.BoardId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.HasOne(bm => bm.User)
+                  .WithMany()
+                  .HasForeignKey(bm => bm.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.Property(bm => bm.JoinedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+       
         modelBuilder.Entity<Section>(entity =>
         {
             entity.HasKey(s => s.Id);

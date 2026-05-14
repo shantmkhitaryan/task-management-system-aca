@@ -21,10 +21,31 @@ public class AuthService
             .FirstOrDefaultAsync(u => u.Username == username && u.PasswordHash == hash);
     }
 
+    public async Task<User?> LoginAsync(string username, string password)
+    {
+        var hash = password.HashPassword();
+        return await _context.Users
+            .FirstOrDefaultAsync(u => u.Username == username && u.PasswordHash == hash);
+    }
+
     public async Task<User> RegisterAsync(User user)
     {
+        var existingUser = await _context.Users
+            .FirstOrDefaultAsync(u => u.Username == user.Username);
+        
+        if (existingUser != null)
+        {
+            throw new InvalidOperationException($"Username {user.Username} already exists");
+        }
+        
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
         return user;
+    }
+    
+    public async Task<User?> GetUserByIdAsync(Guid userId)
+    {
+        return await _context.Users
+            .FirstOrDefaultAsync(u => u.Id == userId);
     }
 }
