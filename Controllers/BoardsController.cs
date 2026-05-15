@@ -17,8 +17,16 @@ public class BoardsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetBoards([FromQuery] Guid userId)
+    public async Task<IActionResult> GetBoards()
     {
+        if (!HttpContext.Items.TryGetValue("UserId", out var UserIdObj))
+        {
+            return BadRequest("Unable to retrieve user id");
+        }
+        if (!Guid.TryParse(UserIdObj?.ToString(), out var userId))
+        {
+            return BadRequest(new { error = "UserId is required" });
+        }
         if (userId == Guid.Empty)
         {
             return BadRequest(new { error = "UserId is required" });

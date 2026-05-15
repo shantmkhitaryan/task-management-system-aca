@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<Section> Sections { get; set; }
     public DbSet<TaskItem> Tasks { get; set; }
     public DbSet<BoardInvite> BoardInvites { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
