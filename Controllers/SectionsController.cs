@@ -16,6 +16,15 @@ public class SectionsController : ControllerBase
         _sectionService = sectionService;
     }
 
+    private Guid GetCurrentUserId()
+    {
+        if (HttpContext.Items.TryGetValue("UserId", out var userIdObj))
+        {
+            return (Guid)userIdObj!;
+        }
+        throw new UnauthorizedAccessException("User not authenticated");
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetSections([FromQuery] Guid boardId)
     {
@@ -24,7 +33,8 @@ public class SectionsController : ControllerBase
             return BadRequest(new { error = "BoardId is required" });
         }
 
-        var sections = await _sectionService.GetSectionsByBoardIdAsync(boardId);
+        var userId = GetCurrentUserId();
+        var sections = await _sectionService.GetSectionsByBoardIdAsync(boardId, userId);
         return Ok(sections);
     }
 
@@ -34,6 +44,14 @@ public class SectionsController : ControllerBase
         if (request.BoardId == Guid.Empty)
         {
             return BadRequest(new { error = "BoardId is required" });
+        }
+
+        // Verify user has access to the board
+        var userId = GetCurrentUserId();
+        var hasAccess = await _sectionService.GetSectionsByBoardIdAsync(request.BoardId, userId);
+        if (hasAccess == null || !hasAccess.Any())
+        {
+            return Unauthorized(new { error = "You don't have access to this board" });
         }
 
         var section = new Section
@@ -50,36 +68,38 @@ public class SectionsController : ControllerBase
         return Ok(createdSection);
     }
 
-    
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateSection(Guid id, [FromBody] UpdateSectionRequest request)
     {
-        var section = await _sectionService.GetSectionByIdAsync(id);
+        var userId = GetCurrentUserId();
+        var section = await _sectionService.GetSectionByIdAsync(id, userId);
+        
         if (section == null)
-            return NotFound(new { error = $"Section {id} not found" });
+            return NotFound(new { error = $"Section {id} not found or you don't have access" });
 
         if (section.IsDefault)
             return BadRequest(new { error = "Cannot rename the default section" });
 
-        var updated = await _sectionService.UpdateSectionNameAsync(id, request.Name);
+        var updated = await _sectionService.UpdateSectionNameAsync(id, request.Name, userId);
         if (!updated)
             return BadRequest(new { error = "Update failed" });
 
         return Ok(new { message = "Section updated successfully", name = request.Name });
     }
 
-    
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteSection(Guid id)
     {
-        var section = await _sectionService.GetSectionByIdAsync(id);
+        var userId = GetCurrentUserId();
+        var section = await _sectionService.GetSectionByIdAsync(id, userId);
+        
         if (section == null)
-            return NotFound(new { error = $"Section {id} not found" });
+            return NotFound(new { error = $"Section {id} not found or you don't have access" });
 
         if (section.IsDefault)
             return BadRequest(new { error = "Cannot delete the default section" });
 
-        var deleted = await _sectionService.DeleteSectionAsync(id);
+        var deleted = await _sectionService.DeleteSectionAsync(id, userId);
         if (!deleted)
             return BadRequest(new { error = "Delete failed" });
 

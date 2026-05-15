@@ -20,32 +20,53 @@ public class SectionService
         return section;
     }
 
-    public async Task<List<Section>> GetSectionsByBoardIdAsync(Guid boardId)
+    public async Task<List<Section>> GetSectionsByBoardIdAsync(Guid boardId, Guid userId)
     {
+        
+        var hasAccess = await _context.Boards
+            .AnyAsync(b => b.Id == boardId && 
+                          (b.OwnerId == userId || 
+                           _context.BoardMembers.Any(bm => bm.BoardId == b.Id && bm.UserId == userId)));
+        
+        if (!hasAccess) return new List<Section>();
+        
         return await _context.Sections
             .Where(s => s.BoardId == boardId)
             .OrderBy(s => s.Position)
             .ToListAsync();
     }
 
-    public async Task<Section?> GetSectionByIdAsync(Guid sectionId)
+    public async Task<Section?> GetSectionByIdAsync(Guid sectionId, Guid userId)
     {
         return await _context.Sections
-            .FirstOrDefaultAsync(s => s.Id == sectionId);
+            .Where(s => s.Id == sectionId && 
+                        (_context.Boards.Any(b => b.Id == s.BoardId && 
+                                                  (b.OwnerId == userId || 
+                                                   _context.BoardMembers.Any(bm => bm.BoardId == b.Id && bm.UserId == userId)))))
+            .FirstOrDefaultAsync();
     }
 
-    public async Task<bool> UpdateSectionNameAsync(Guid sectionId, string name)
+    public async Task<bool> UpdateSectionNameAsync(Guid sectionId, string name, Guid userId)
     {
-        var section = await _context.Sections.FindAsync(sectionId);
+        var section = await _context.Sections
+            .Where(s => s.Id == sectionId && 
+                        (_context.Boards.Any(b => b.Id == s.BoardId && b.OwnerId == userId)))
+            .FirstOrDefaultAsync();
+            
         if (section == null) return false;
         
         section.Name = name;
         return await _context.SaveChangesAsync() > 0;
     }
 
-    public async Task<bool> DeleteSectionAsync(Guid sectionId)
+    public async Task<bool> DeleteSectionAsync(Guid sectionId, Guid userId)
     {
-        var section = await _context.Sections.FindAsync(sectionId);
+        var section = await _context.Sections
+            .Where(s => s.Id == sectionId && 
+                        s.IsDefault == false &&
+                        (_context.Boards.Any(b => b.Id == s.BoardId && b.OwnerId == userId)))
+            .FirstOrDefaultAsync();
+            
         if (section == null) return false;
         
         _context.Sections.Remove(section);

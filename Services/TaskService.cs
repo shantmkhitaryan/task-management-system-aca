@@ -21,8 +21,16 @@ public class TaskService
         return task;
     }
 
-    public async Task<List<TaskResponseDto>> GetTasksByBoardIdAsync(Guid boardId, bool includeArchived = false)
+    public async Task<List<TaskResponseDto>> GetTasksByBoardIdAsync(Guid boardId, Guid userId, bool includeArchived = false)
     {
+        // Check if user has access to the board
+        var hasAccess = await _context.Boards
+            .AnyAsync(b => b.Id == boardId && 
+                          (b.OwnerId == userId || 
+                           _context.BoardMembers.Any(bm => bm.BoardId == b.Id && bm.UserId == userId)));
+        
+        if (!hasAccess) return new List<TaskResponseDto>();
+        
         var query = _context.Tasks
             .Include(t => t.Board)
             .Where(t => t.BoardId == boardId);
@@ -52,18 +60,24 @@ public class TaskService
         }).ToList();
     }
 
-    public async Task<TaskItem?> GetTaskByIdAsync(Guid taskId)
+    public async Task<TaskItem?> GetTaskByIdAsync(Guid taskId, Guid userId)
     {
         return await _context.Tasks
             .Include(t => t.Board)
-            .FirstOrDefaultAsync(t => t.Id == taskId);
+            .Where(t => t.Id == taskId && 
+                        (t.Board.OwnerId == userId || 
+                         _context.BoardMembers.Any(bm => bm.BoardId == t.BoardId && bm.UserId == userId)))
+            .FirstOrDefaultAsync();
     }
 
-    public async Task<TaskResponseDto?> GetTaskResponseByIdAsync(Guid taskId)
+    public async Task<TaskResponseDto?> GetTaskResponseByIdAsync(Guid taskId, Guid userId)
     {
         var task = await _context.Tasks
             .Include(t => t.Board)
-            .FirstOrDefaultAsync(t => t.Id == taskId);
+            .Where(t => t.Id == taskId && 
+                        (t.Board.OwnerId == userId || 
+                         _context.BoardMembers.Any(bm => bm.BoardId == t.BoardId && bm.UserId == userId)))
+            .FirstOrDefaultAsync();
         
         if (task == null) return null;
         
@@ -88,15 +102,37 @@ public class TaskService
         };
     }
 
-    public async Task<bool> UpdateTaskAsync(TaskItem task)
+    public async Task<bool> UpdateTaskAsync(TaskItem task, Guid userId)
     {
-        _context.Tasks.Update(task);
+        var existingTask = await _context.Tasks
+            .Include(t => t.Board)
+            .Where(t => t.Id == task.Id && 
+                        (t.Board.OwnerId == userId || 
+                         _context.BoardMembers.Any(bm => bm.BoardId == t.BoardId && bm.UserId == userId)))
+            .FirstOrDefaultAsync();
+            
+        if (existingTask == null) return false;
+        
+        existingTask.Title = task.Title;
+        existingTask.Description = task.Description;
+        existingTask.AssigneeId = task.AssigneeId;
+        existingTask.DueDate = task.DueDate;
+        existingTask.Priority = task.Priority;
+        existingTask.UpdatedAt = DateTime.UtcNow;
+        
+        _context.Tasks.Update(existingTask);
         return await _context.SaveChangesAsync() > 0;
     }
 
-    public async Task<bool> MoveTaskToSectionAsync(Guid taskId, Guid sectionId)
+    public async Task<bool> MoveTaskToSectionAsync(Guid taskId, Guid sectionId, Guid userId)
     {
-        var task = await _context.Tasks.FindAsync(taskId);
+        var task = await _context.Tasks
+            .Include(t => t.Board)
+            .Where(t => t.Id == taskId && 
+                        (t.Board.OwnerId == userId || 
+                         _context.BoardMembers.Any(bm => bm.BoardId == t.BoardId && bm.UserId == userId)))
+            .FirstOrDefaultAsync();
+            
         if (task == null) return false;
         
         task.SectionId = sectionId;
@@ -104,9 +140,15 @@ public class TaskService
         return await _context.SaveChangesAsync() > 0;
     }
 
-    public async Task<bool> ArchiveTaskAsync(Guid taskId)
+    public async Task<bool> ArchiveTaskAsync(Guid taskId, Guid userId)
     {
-        var task = await _context.Tasks.FindAsync(taskId);
+        var task = await _context.Tasks
+            .Include(t => t.Board)
+            .Where(t => t.Id == taskId && 
+                        (t.Board.OwnerId == userId || 
+                         _context.BoardMembers.Any(bm => bm.BoardId == t.BoardId && bm.UserId == userId)))
+            .FirstOrDefaultAsync();
+            
         if (task == null) return false;
         
         task.IsArchived = true;
@@ -114,9 +156,15 @@ public class TaskService
         return await _context.SaveChangesAsync() > 0;
     }
 
-    public async Task<bool> DeleteTaskAsync(Guid taskId)
+    public async Task<bool> DeleteTaskAsync(Guid taskId, Guid userId)
     {
-        var task = await _context.Tasks.FindAsync(taskId);
+        var task = await _context.Tasks
+            .Include(t => t.Board)
+            .Where(t => t.Id == taskId && 
+                        (t.Board.OwnerId == userId || 
+                         _context.BoardMembers.Any(bm => bm.BoardId == t.BoardId && bm.UserId == userId)))
+            .FirstOrDefaultAsync();
+            
         if (task == null) return false;
         
         _context.Tasks.Remove(task);

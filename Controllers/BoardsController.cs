@@ -16,22 +16,19 @@ public class BoardsController : ControllerBase
         _boardService = boardService;
     }
 
+    private Guid GetCurrentUserId()
+    {
+        if (HttpContext.Items.TryGetValue("UserId", out var userIdObj))
+        {
+            return (Guid)userIdObj!;
+        }
+        throw new UnauthorizedAccessException("User not authenticated");
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetBoards()
     {
-        if (!HttpContext.Items.TryGetValue("UserId", out var UserIdObj))
-        {
-            return BadRequest("Unable to retrieve user id");
-        }
-        if (!Guid.TryParse(UserIdObj?.ToString(), out var userId))
-        {
-            return BadRequest(new { error = "UserId is required" });
-        }
-        if (userId == Guid.Empty)
-        {
-            return BadRequest(new { error = "UserId is required" });
-        }
-
+        var userId = GetCurrentUserId();
         var boards = await _boardService.GetBoardsByUserAsync(userId);
         return Ok(boards);
     }
@@ -39,28 +36,27 @@ public class BoardsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetBoard(Guid id)
     {
-        var board = await _boardService.GetBoardByIdAsync(id);
+        var userId = GetCurrentUserId();
+        var board = await _boardService.GetBoardByIdAsync(id, userId);
+        
         if (board == null)
-            return NotFound();
-
+            return NotFound(new { error = "Board not found or you don't have access" });
+        
         return Ok(board);
     }
 
     [HttpPost]
     public async Task<IActionResult> CreateBoard([FromBody] CreateBoardRequest request)
     {
-        if (request.UserId == Guid.Empty)
-        {
-            return BadRequest(new { error = "UserId is required" });
-        }
-
+        var userId = GetCurrentUserId();
+        
         var board = new Board
         {
             Id = Guid.NewGuid(),
             Title = request.Title,
             Description = request.Description,
             Sku = request.Sku.ToUpper(),
-            OwnerId = request.UserId,
+            OwnerId = userId,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -68,36 +64,34 @@ public class BoardsController : ControllerBase
         return CreatedAtAction(nameof(GetBoard), new { id = createdBoard.Id }, createdBoard);
     }
 
-    
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateBoard(Guid id, [FromBody] UpdateBoardRequest request)
     {
-        var board = await _boardService.GetBoardByIdAsync(id);
-        if (board == null)
-            return NotFound(new { error = $"Board {id} not found" });
-
-        board.Title = request.Title;
-        board.Description = request.Description;
+        var userId = GetCurrentUserId();
         
-        var updated = await _boardService.UpdateBoardAsync(board);
-        if (!updated)
-            return BadRequest(new { error = "Update failed" });
+        var board = new Board
+        {
+            Id = id,
+            Title = request.Title,
+            Description = request.Description,
+            OwnerId = userId
+        };
 
-        return Ok(board);
+        var updated = await _boardService.UpdateBoardAsync(board, userId);
+        if (!updated)
+            return NotFound(new { error = "Board not found or you don't have permission" });
+
+        return Ok(new { message = "Board updated successfully" });
     }
 
-    
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteBoard(Guid id, [FromQuery] Guid ownerId)
+    public async Task<IActionResult> DeleteBoard(Guid id)
     {
-        if (ownerId == Guid.Empty)
-        {
-            return BadRequest(new { error = "OwnerId is required" });
-        }
-
-        var deleted = await _boardService.DeleteBoardAsync(id, ownerId);
+        var userId = GetCurrentUserId();
+        
+        var deleted = await _boardService.DeleteBoardAsync(id, userId);
         if (!deleted)
-            return NotFound(new { error = $"Board {id} not found or you don't own it" });
+            return NotFound(new { error = "Board not found or you don't own it" });
 
         return NoContent();
     }

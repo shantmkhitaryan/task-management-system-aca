@@ -20,21 +20,32 @@ public class TasksController : ControllerBase
         _sectionService = sectionService;
     }
 
+    private Guid GetCurrentUserId()
+    {
+        if (HttpContext.Items.TryGetValue("UserId", out var userIdObj))
+        {
+            return (Guid)userIdObj!;
+        }
+        throw new UnauthorizedAccessException("User not authenticated");
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetTasks(Guid boardId, [FromQuery] bool archived = false)
     {
-        var board = await _boardService.GetBoardByIdAsync(boardId);
+        var userId = GetCurrentUserId();
+        var board = await _boardService.GetBoardByIdAsync(boardId, userId);
         if (board == null)
-            return NotFound($"Board {boardId} not found");
+            return NotFound($"Board {boardId} not found or you don't have access");
 
-        var tasks = await _taskService.GetTasksByBoardIdAsync(boardId, archived);
+        var tasks = await _taskService.GetTasksByBoardIdAsync(boardId, userId, archived);
         return Ok(tasks);
     }
 
     [HttpGet("{taskId}")]
     public async Task<IActionResult> GetTask(Guid boardId, Guid taskId)
     {
-        var task = await _taskService.GetTaskResponseByIdAsync(taskId);
+        var userId = GetCurrentUserId();
+        var task = await _taskService.GetTaskResponseByIdAsync(taskId, userId);
         if (task == null || task.BoardId != boardId)
             return NotFound();
 
@@ -44,11 +55,12 @@ public class TasksController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateTask(Guid boardId, [FromBody] CreateTaskRequest request)
     {
-        var board = await _boardService.GetBoardByIdAsync(boardId);
+        var userId = GetCurrentUserId();
+        var board = await _boardService.GetBoardByIdAsync(boardId, userId);
         if (board == null)
-            return NotFound($"Board {boardId} not found");
+            return NotFound($"Board {boardId} not found or you don't have access");
 
-        var sections = await _sectionService.GetSectionsByBoardIdAsync(boardId);
+        var sections = await _sectionService.GetSectionsByBoardIdAsync(boardId, userId);
         
         if (sections == null || !sections.Any())
             return BadRequest("No sections found. Please create a section first.");
@@ -69,7 +81,7 @@ public class TasksController : ControllerBase
             DueDate = request.DueDate,
             Priority = request.Priority,
             IsArchived = false,
-            CreatedBy = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+            CreatedBy = userId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -81,7 +93,8 @@ public class TasksController : ControllerBase
     [HttpPut("{taskId}")]
     public async Task<IActionResult> UpdateTask(Guid boardId, Guid taskId, [FromBody] UpdateTaskRequest request)
     {
-        var task = await _taskService.GetTaskByIdAsync(taskId);
+        var userId = GetCurrentUserId();
+        var task = await _taskService.GetTaskByIdAsync(taskId, userId);
         if (task == null || task.BoardId != boardId)
             return NotFound();
 
@@ -102,7 +115,7 @@ public class TasksController : ControllerBase
         
         task.UpdatedAt = DateTime.UtcNow;
 
-        var updated = await _taskService.UpdateTaskAsync(task);
+        var updated = await _taskService.UpdateTaskAsync(task, userId);
         if (!updated)
             return BadRequest();
 
@@ -112,11 +125,12 @@ public class TasksController : ControllerBase
     [HttpPatch("{taskId}/move")]
     public async Task<IActionResult> MoveTask(Guid boardId, Guid taskId, [FromBody] MoveTaskRequest request)
     {
-        var task = await _taskService.GetTaskByIdAsync(taskId);
+        var userId = GetCurrentUserId();
+        var task = await _taskService.GetTaskByIdAsync(taskId, userId);
         if (task == null || task.BoardId != boardId)
             return NotFound();
 
-        var moved = await _taskService.MoveTaskToSectionAsync(taskId, request.SectionId);
+        var moved = await _taskService.MoveTaskToSectionAsync(taskId, request.SectionId, userId);
         if (!moved)
             return BadRequest();
 
@@ -126,11 +140,12 @@ public class TasksController : ControllerBase
     [HttpPatch("{taskId}/archive")]
     public async Task<IActionResult> ArchiveTask(Guid boardId, Guid taskId)
     {
-        var task = await _taskService.GetTaskByIdAsync(taskId);
+        var userId = GetCurrentUserId();
+        var task = await _taskService.GetTaskByIdAsync(taskId, userId);
         if (task == null || task.BoardId != boardId)
             return NotFound();
 
-        var archived = await _taskService.ArchiveTaskAsync(taskId);
+        var archived = await _taskService.ArchiveTaskAsync(taskId, userId);
         if (!archived)
             return BadRequest();
 
@@ -140,11 +155,12 @@ public class TasksController : ControllerBase
     [HttpDelete("{taskId}")]
     public async Task<IActionResult> DeleteTask(Guid boardId, Guid taskId)
     {
-        var task = await _taskService.GetTaskByIdAsync(taskId);
+        var userId = GetCurrentUserId();
+        var task = await _taskService.GetTaskByIdAsync(taskId, userId);
         if (task == null || task.BoardId != boardId)
             return NotFound();
 
-        var deleted = await _taskService.DeleteTaskAsync(taskId);
+        var deleted = await _taskService.DeleteTaskAsync(taskId, userId);
         if (!deleted)
             return BadRequest();
 
